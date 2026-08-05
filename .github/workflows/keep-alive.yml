@@ -1,0 +1,50 @@
+# Keep-alive ping — stops Render's free web service from sleeping
+# ===============================================================
+# Render spins a free web service down after 15 minutes with no traffic; the
+# next request then pays a 30-60s cold start. This workflow pings the health
+# endpoint every 10 minutes during Indian office hours so the first real user of
+# the day doesn't wait.
+#
+# It is deliberately NOT 24x7: the free tier grants 750 instance-hours a month,
+# and keeping the service awake around the clock would burn through them. Office
+# hours only leaves comfortable headroom.
+#
+# SETUP
+#   Repo -> Settings -> Secrets and variables -> Actions -> New repository secret
+#     name:  API_HEALTH_URL
+#     value: https://nbpdcl-api.onrender.com/api/v1/health   (your backend URL)
+#
+# If the secret is absent the job no-ops instead of failing, so a fork without
+# the secret set doesn't show a red X.
+
+name: keep-alive
+
+on:
+  schedule:
+    # Every 10 minutes, 03:30-13:30 UTC = 09:00-19:00 IST (Mon-Sat).
+    # cron is UTC; day-of-week 1-6 is Mon-Sat.
+    - cron: "*/10 3-13 * * 1-6"
+  workflow_dispatch: {}   # allow a manual run from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health endpoint
+        env:
+          URL: ${{ secrets.API_HEALTH_URL }}
+        run: |
+          if [ -z "$URL" ]; then
+            echo "API_HEALTH_URL secret not set — skipping (this is not a failure)."
+            exit 0
+          fi
+          echo "Pinging $URL"
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 "$URL" || echo "000")
+          echo "HTTP $code"
+          # A cold start can take up to ~60s; --max-time 90 covers it. Any 2xx is
+          # success. Non-2xx is logged but does not fail the workflow, because a
+          # single missed ping is harmless and we don't want noisy alerts.
+          case "$code" in
+            2*) echo "Service awake." ;;
+            *)  echo "::warning::Health ping returned $code (service may be waking or down)." ;;
+          esac

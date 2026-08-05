@@ -1,0 +1,79 @@
+# Render Blueprint — NBPDCL Enterprise Dashboard
+# ================================================
+# One file that provisions BOTH services on Render's free tier:
+#   - a FastAPI web service (the backend)
+#   - a static site (the built Vite frontend)
+#
+# This is ADDITIVE. It does not change any application code. The existing
+# backend/Dockerfile and docker-compose.yml are untouched and still work for
+# local development; Render uses the native Python runtime below instead of the
+# Dockerfile so it can inject $PORT (the Dockerfile hard-codes 8000, which Render
+# does not honour).
+#
+# HOW TO USE
+#   1. Push this repo to GitHub.
+#   2. Render dashboard -> New -> Blueprint -> pick this repo.
+#   3. Render reads this file and creates both services.
+#   4. Set the secret env vars marked "sync: false" below (JWT_SECRET, the
+#      demo password, and — after the first deploy — the real URLs).
+#
+# See docs/DEPLOYMENT.md for the full walkthrough.
+
+services:
+  # ---------------------------------------------------------------- backend
+  - type: web
+    name: nbpdcl-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    # $PORT is supplied by Render — never hard-code it. uvicorn binds to it here,
+    # unlike the Dockerfile's fixed 8000.
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      # Generated once by Render and kept stable across deploys, so tokens
+      # survive a redeploy. Do NOT print or commit it.
+      - key: JWT_SECRET
+        generateValue: true
+      # Must be set by hand — the shared demo password should not live in git.
+      - key: DEMO_USERNAME
+        sync: false
+      - key: DEMO_PASSWORD
+        sync: false
+      # The Google Apps Script endpoint. A default ships in config.py, but set it
+      # here explicitly so a script redeploy doesn't require a code change.
+      - key: GOOGLE_SCRIPT_URL
+        sync: false
+      # Set to the static site's URL AFTER the first deploy (see DEPLOYMENT.md).
+      # Comma-separated. Until then the backend rejects browser calls by CORS —
+      # which is correct, not a bug.
+      - key: CORS_ORIGINS
+        sync: false
+
+  # --------------------------------------------------------------- frontend
+  - type: web
+    name: nbpdcl-dashboard
+    runtime: static
+    plan: free
+    rootDir: frontend
+    # npm ci (not install) so TypeScript stays pinned at 5.9.3 — 6.0.3 breaks the
+    # build on the baseUrl tsconfig setting.
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      # Point the built bundle at the API. Set to the backend URL after its first
+      # deploy, e.g. https://nbpdcl-api.onrender.com/api/v1 (note the /api/v1).
+      - key: VITE_API_URL
+        sync: false
+    # SPA routing: every path serves index.html so React Router deep links work.
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: SAMEORIGIN
