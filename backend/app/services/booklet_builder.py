@@ -82,7 +82,7 @@ MONTH_NAMES = [
 # that exists on the row wins; if none exist the cell degrades to a blank /
 # "100%" rather than crashing the booklet. See docs/BOOKLET_AUTOMATION.md.
 METER_KEYS = ("meter_no", "meter_sno", "meter_serial", "ca_no", "consumer_no", "meter_ca_no")
-SHARING_KEYS = ("sharing_pct", "sharing_percent", "sharing_ratio", "share_pct", "sharing")
+SHARING_KEYS = ("sharing_percentage","sharing_pct", "sharing_percent", "sharing_ratio", "share_pct", "sharing")
 
 
 # ------------------------------------------------------------------ helpers
