@@ -89,6 +89,22 @@ async def _discom_split(filters: Dict[str, Optional[str]]) -> Tuple[float, float
             nb += q
         elif d == "sbpdcl":
             sb += q
+
+    # Sale to Nepal is billed by NBPDCL (power drawn through the North-Bihar
+    # periphery), so it belongs on NBPDCL's side of the sharing ratio. Add the
+    # period's nepal_drawal from the nepal_energy sheet to NBPDCL. Optional tab —
+    # if it is absent or empty, nothing is added and the ratio is unchanged.
+    try:
+        nepal_rows = await get_sheet_data(settings.SHEET_NEPAL_ENERGY)
+        for r in nepal_rows:
+            if _norm(r.get("metric_name")) != "nepal_drawal":
+                continue
+            if not _in_period(r.get("reporting_month", ""), filters):
+                continue
+            nb += _to_float(r.get("energy_quantum"))
+    except Exception:
+        pass  # Nepal sheet missing → ratio stays input-energy only
+
     return nb, sb
 
 

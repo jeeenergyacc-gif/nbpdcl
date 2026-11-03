@@ -73,7 +73,11 @@ export default function TransmissionLossDashboard() {
   const handleChange = (key: keyof TransmissionFilters, value: string) => setFilters((f) => ({ ...f, [key]: value }));
   const handleReset = () => setFilters(EMPTY_FILTERS);
 
-  const period = monthLabel(kpis?.period);
+  // For a quarter/FY filter the backend sends period as a range (e.g. "2026-07..2026-09")
+  // plus a ready label in period_label ("Q2 FY 26-27"). monthLabel only parses the first
+  // month of a range, which is why a quarter used to show just "Jul 2026". Prefer the
+  // backend's period_label for ranges; keep monthLabel's nice "Sep 2026" for single months.
+  const period = kpis?.is_range ? (kpis?.period_label || monthLabel(kpis?.period)) : monthLabel(kpis?.period);
 
   const buildSankey = (payload: any, colorMap: Record<string, string>) => {
     const nodes: BlockSankeyNode[] = [];

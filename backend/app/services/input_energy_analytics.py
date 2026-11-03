@@ -294,8 +294,45 @@ async def get_insights(filters: Dict[str, Optional[str]]) -> List[str]:
     return insights
 
 
+def _nepal_in_period(reporting_month: str, filters: Dict[str, Optional[str]]) -> bool:
+    """Match a nepal_energy reporting_month (YYYY-MM) against the FY period filters."""
+    ym = str(reporting_month or "")
+    if filters.get("year") and not in_fy(ym, filters["year"]):
+        return False
+    if filters.get("month") and ym[5:7] != str(filters["month"]).zfill(2):
+        return False
+    if filters.get("quarter") and not in_fy_quarter(ym, filters["quarter"]):
+        return False
+    return True
+
+
+async def _nepal_sale_mu(filters: Dict[str, Optional[str]]) -> float:
+    """Period 'Sale to Nepal' (nepal_drawal) in MU. Belongs to NBPDCL entirely, so
+    it is reported for NBPDCL and the BSPHCL holding view, and is zero for SBPDCL.
+    Optional tab — if the nepal_energy sheet is missing/empty, returns 0.0."""
+    discom = (filters.get("discom_name") or filters.get("discom") or "BSPHCL").strip().upper()
+    if discom == "SBPDCL":
+        return 0.0
+    try:
+        nepal_rows = await get_sheet_data(settings.SHEET_NEPAL_ENERGY)
+    except Exception:
+        return 0.0
+    total = 0.0
+    for r in nepal_rows:
+        if str(r.get("metric_name", "")).strip().lower() != "nepal_drawal":
+            continue
+        if not _nepal_in_period(r.get("reporting_month", ""), filters):
+            continue
+        total += coerce_float(r, "energy_quantum")
+    return round(total, 3)
+
+
 async def get_table_data(filters: Dict[str, Optional[str]], page: int = 1, page_size: int = 50) -> Dict[str, Any]:
     rows = _apply_filters(await get_raw_data(), filters)
     total = len(rows)
     start = (page - 1) * page_size
-    return {"rows": rows[start:start + page_size], "total": total, "page": page, "page_size": page_size}
+    # nepal_sale_mu is response metadata (NOT a feeder row): the dashboard table
+    # ignores it, while the Reports CSV export appends it as a trailing
+    # "Sale to Nepal" line beneath the NBPDCL feeder rows.
+    return {"rows": rows[start:start + page_size], "total": total, "page": page,
+            "page_size": page_size, "nepal_sale_mu": await _nepal_sale_mu(filters)}

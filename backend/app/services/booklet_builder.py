@@ -248,6 +248,7 @@ def _loss_narrative(c: Dict[str, Any], flow: Dict[str, Any], month_label: str) -
     embedded = float(c["embedded_generation"])
     pros = float(c["prosumer_sale"])
     rail = float(c["railway_overdrawal"])
+    nepal = float(c.get("nepal_drawal", 0.0))
     r21 = float(c["discom_drawal"])
     r24 = float(c["total_drawal_bsptcl"])
     stl = float(c["stl"])
@@ -268,13 +269,13 @@ def _loss_narrative(c: Dict[str, Any], flow: Dict[str, Any], month_label: str) -
             f"{_fmt(ctl)} / {_fmt(ctl_den)} = {_fmt(c['ctl_pct'])}%"
         ),
         "stl_injected_formula": "Total Power Injected at BSPTCL = Total Actual Drawal at Boundary + Intrastate Purchase",
-        "stl_drawal_formula": "Total DISCOM Drawal = DISCOMs Net Drawal + Prosumer Sales + Railway Overdrawal",
+        "stl_drawal_formula": "Total DISCOM Drawal = DISCOMs Net Drawal + Prosumer Sales + Railway Overdrawal + Sale to Nepal",
         "stl_formula": "STL = Total Power Injected at BSPTCL − Total DISCOM Drawal",
         "stl_worked": [
             f"Total Power Injected = {_fmt(r11)} MU (Boundary Actual) + {_fmt(intra)} MU "
             f"(Intrastate Purchase) = {_fmt(r17)} MU",
             f"Net DISCOM Demand (NB + SB) = {_fmt(nb)} MU + {_fmt(sb)} MU − {_fmt(embedded)} MU = {_fmt(r21)} MU",
-            f"Total DISCOM Drawal = {_fmt(r21)} MU + {_fmt(pros)} MU + {_fmt(rail)} MU = {_fmt(r24)} MU",
+            f"Total DISCOM Drawal = {_fmt(r21)} MU + {_fmt(pros)} MU + {_fmt(rail)} MU + {_fmt(nepal)} MU (Sale to Nepal) = {_fmt(r24)} MU",
             f"STL = {_fmt(r17)} MU − {_fmt(r24)} MU = {_fmt(stl)} MU",
         ],
         "stl_pct_worked": f"STL % = ({_fmt(stl)} / {_fmt(r17)}) × 100 = {_fmt(c['stl_pct'])}%",
@@ -604,6 +605,10 @@ async def build_payload(
             "heading": "Division-wise Consumption",
             "rows": div_rows,
             "grand_total_mu": _mu(sum(d["mu"] for d in div_rows)),
+            # Sale to Nepal shown as an addendum line under the NBPDCL grand total
+            # (energy NBPDCL supplied to and bills Nepal). It is NOT part of the
+            # division sum, so the reconciliation checks are unaffected.
+            "nepal_sale_mu": _mu(c.get("nepal_drawal", 0.0)),
         },
         "section_9": {
             "heading": "Detailed Calculation of Circle / Division wise Input Energy",

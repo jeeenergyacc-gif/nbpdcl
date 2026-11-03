@@ -304,6 +304,22 @@ export default function ReportsPage() {
         params: { page: 1, page_size: 5000, ...periodParams(period) },
       });
       const rows = res.data?.rows || [];
+      // Input Energy export: append "Sale to Nepal" beneath the NBPDCL feeder
+      // rows. The backend sends the period's value as nepal_sale_mu metadata
+      // (NBPDCL/BSPHCL only, 0 for SBPDCL); we mirror the feeder row keys so the
+      // CSV columns stay aligned, blanking the hierarchy and tagging it as an
+      // export line. Only added when there is a value and at least one data row.
+      if (report.key === 'input-energy' && rows.length > 0 && Number(res.data?.nepal_sale_mu) > 0) {
+        const nepalRow: Record<string, any> = {};
+        for (const k of Object.keys(rows[0])) nepalRow[k] = '';
+        if ('year_month' in nepalRow) nepalRow.year_month = rows[0].year_month ?? '';
+        if ('discom_name' in nepalRow) nepalRow.discom_name = 'NBPDCL';
+        if ('feeder_name' in nepalRow) nepalRow.feeder_name = 'Sale to Nepal';
+        if ('feeder_type' in nepalRow) nepalRow.feeder_type = 'Export';
+        if ('sharing_percentage' in nepalRow) nepalRow.sharing_percentage = 100;
+        if ('energy_quantum' in nepalRow) nepalRow.energy_quantum = res.data.nepal_sale_mu;
+        rows.push(nepalRow);
+      }
       // downloadCsv already alerts on an empty set, which is the right signal
       // that the chosen period has no data for this module.
       downloadCsv(`${report.key}_report_${periodSuffix(period)}.csv`, rows);

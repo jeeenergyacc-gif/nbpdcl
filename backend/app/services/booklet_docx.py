@@ -363,6 +363,12 @@ def _section_8(doc: Document, s: Dict[str, Any], n: str) -> None:
              aligns=["left", "left", "right"])
     _row(t, ["Grand Total", "", f"{s['grand_total_mu']:,.2f}"], w,
          bold=True, fill=TOTAL_FILL, aligns=["left", "left", "right"])
+    # Sale to Nepal addendum, directly under the NBPDCL grand total (energy
+    # NBPDCL supplied to and bills Nepal; not part of the division consumption sum).
+    nepal_sale = s.get("nepal_sale_mu") or 0.0
+    if nepal_sale:
+        _row(t, ["Add: Sale to Nepal", "", f"{nepal_sale:,.2f}"], w,
+             bold=True, aligns=["left", "left", "right"])
     _page_break(doc)
 
 

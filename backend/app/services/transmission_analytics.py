@@ -210,7 +210,12 @@ def _compute_month(
 
     r17_total_bsptcl = r11_actual_drawal + intrastate                # R17
     r21_discom_drawal = r18_nbpdcl + r19_sbpdcl - embedded           # R21
-    r24_total_drawal = r21_discom_drawal + r22_prosumer + r23_rail_over  # R24
+    # R24 Total Drawal from BSPTCL = DISCOM drawal + Sale to Prosumers + Railway
+    # Overdrawal + Sale to Nepal. Nepal drawal is energy BSPTCL supplied that NBPDCL
+    # bills to Nepal (a sale through the North-Bihar periphery), so — like the other
+    # sales — it is accounted as drawal, not loss. It comes from the nepal_energy
+    # sheet's nepal_drawal metric, so a month with no Nepal sale adds 0.
+    r24_total_drawal = r21_discom_drawal + r22_prosumer + r23_rail_over + nepal_drawal  # R24
     r25_stl = r17_total_bsptcl - r24_total_drawal                    # R25
     stl_pct = _safe_div(r25_stl, r17_total_bsptcl) * 100             # R26
 
@@ -336,7 +341,10 @@ def _allocate(c: Dict[str, float], discom: Optional[str]) -> Dict[str, float]:
     ctl_pct = _safe_div(r12_ctl, central - renewable_central) * 100
     r17 = r11 + intrastate
     r21 = r18a + r19a - embedded
-    r24 = r21 + prosumer + rail_over
+    # Sale to Nepal (nepal_drawal) — already 0 for the SBPDCL view and full for
+    # NBPDCL (set in the Nepal block above), so Nepal attaches 100% to NBPDCL and
+    # the two DISCOM views still sum to the BSPHCL holding.
+    r24 = r21 + prosumer + rail_over + nepal_drawal
     r25_stl = r17 - r24
     stl_pct = _safe_div(r25_stl, r17) * 100
     total_loss = r12_ctl + r25_stl
@@ -845,7 +853,8 @@ def _balance_table(c: Dict[str, float], month: Optional[str]) -> Dict[str, Any]:
         {"band": "B", "sl": 21, "particulars": "DISCOMs (NB+SB) Drawal from BSPTCL", "formula": "= R18 + R19 − R20", "mu": r2(c["discom_drawal"]), "pct": pct_of_boundary(c["discom_drawal"]), "subtotal": True},
         {"band": "B", "sl": 22, "particulars": "Add: Sale to Prosumers", "formula": "", "mu": r2(c["prosumer_sale"]), "pct": pct_of_boundary(c["prosumer_sale"])},
         {"band": "B", "sl": 23, "particulars": "Add: Railway Overdrawal", "formula": "", "mu": r2(c["railway_overdrawal"]), "pct": pct_of_boundary(c["railway_overdrawal"])},
-        {"band": "B", "sl": 24, "particulars": "Total Drawal from BSPTCL", "formula": "= R21 + R22 + R23", "mu": r2(c["total_drawal_bsptcl"]), "pct": pct_of_boundary(c["total_drawal_bsptcl"]), "subtotal": True},
+        {"band": "B", "sl": 23.1, "particulars": "Add: Sale to Nepal", "formula": "nepal_drawal", "mu": r2(c["nepal_drawal"]), "pct": pct_of_boundary(c["nepal_drawal"])},
+        {"band": "B", "sl": 24, "particulars": "Total Drawal from BSPTCL", "formula": "= R21 + R22 + R23 + Nepal", "mu": r2(c["total_drawal_bsptcl"]), "pct": pct_of_boundary(c["total_drawal_bsptcl"]), "subtotal": True},
         # C. LOSSES
         {"band": "C", "sl": 12, "particulars": "CTL — Central Transmission Loss", "formula": "= R2 − R11", "mu": r2(c["ctl"]), "pct": r2(c["ctl_pct"]), "loss": True},
         {"band": "C", "sl": 25, "particulars": "STL — State Transmission Loss", "formula": "= R17 − R24", "mu": r2(c["stl"]), "pct": r2(c["stl_pct"]), "loss": True},
